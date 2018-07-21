@@ -1,0 +1,88 @@
+---
+- name: Ensure directories exist
+  file:
+    state: directory
+    path: "{{ item.path }}"
+    mode: "{{ item.mode | default(0755) }}"
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+  with_items:
+    - path: "{{ docker_logstash_home }}"
+      mode: "0700"
+    - path: "{{ docker_logstash_home }}/data"
+      mode: "0700"
+      owner: 1000
+      group: 1000
+    - path: "{{ docker_logstash_home }}/pipeline"
+    - path: "{{ docker_logstash_home }}/config"
+
+- name: Copy logstash empty pipeline
+  template: &docker_copy_logstash_pipeline
+    src: logstash.conf.j2
+    dest: "{{ docker_logstash_home }}/pipeline/logstash.conf"
+    mode: "0600"
+    owner: 1000
+    group: 1000
+
+- name: Copy logstash configs
+  copy:
+    src: logstash.yml
+    dest: "{{ docker_logstash_home }}/config/logstash.yml"
+    mode: "0600"
+    owner: 1000
+    group: 1000
+
+- name: Remove existing {{ docker_logstash_name }} container
+  docker_container:
+    name: "{{ docker_logstash_name }}"
+    state: absent
+  when: docker_logstash_remove_existing_container
+
+- name: Run docker logstash container with empty pipeline
+  docker_container:
+    name: "{{ docker_logstash_name }}"
+    image: "{{ docker_logstash_image }}"
+    restart_policy: always
+    ports: "{{ docker_logstash_ports }}"
+    network_mode: "{{ docker_logstash_network_mode }}"
+    networks: "{{ docker_logstash_networks }}"
+    env: "{{ docker_logstash_env }}"
+    volumes:
+      - "{{ docker_logstash_home }}/data:/usr/share/logstash/data"
+      - "{{ docker_logstash_home }}/pipeline:/usr/share/logstash/pipeline"
+      - "{{ docker_logstash_home }}/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+    log_driver: "{{ docker_logstash_log_driver }}"
+    log_options: "{{ docker_logstash_log_options }}"
+  when: (docker_logstash_uninstall_plugins|length > 0) or (docker_logstash_plugins|length > 0)
+
+- name: Uninstall plugins in {{ docker_logstash_name }} container
+  command: "docker exec -t {{ docker_logstash_name }} bin/logstash-plugin remove {{ item }}"
+  with_items: "{{ docker_logstash_uninstall_plugins }}"
+
+- name: Install plugins in {{ docker_logstash_name }} container
+  command: "docker exec -t {{ docker_logstash_name }} bin/logstash-plugin install {{ item }}"
+  with_items: "{{ docker_logstash_plugins }}"
+
+- name: Unset install mode
+  set_fact:
+    docker_logstash_install_mode: false
+
+- name: Copy logstash pipeline
+  template: *docker_copy_logstash_pipeline
+
+- name: Run docker logstash container
+  docker_container:
+    name: "{{ docker_logstash_name }}"
+    image: "{{ docker_logstash_image }}"
+    restart_policy: always
+    ports: "{{ docker_logstash_ports }}"
+    network_mode: "{{ docker_logstash_network_mode }}"
+    networks: "{{ docker_logstash_networks }}"
+    env: "{{ docker_logstash_env }}"
+    volumes:
+      - "{{ docker_logstash_home }}/data:/usr/share/logstash/data"
+      - "{{ docker_logstash_home }}/pipeline:/usr/share/logstash/pipeline"
+      - "{{ docker_logstash_home }}/config/logstash.yml:/usr/share/logstash/config/logstash.yml"
+    log_driver: "{{ docker_logstash_log_driver }}"
+    log_options: "{{ docker_logstash_log_options }}"
+    restart: yes

@@ -1,0 +1,39 @@
+---
+
+docker_logstash_name: logstash
+docker_logstash_image: docker.elastic.co/logstash/logstash:6.2.4
+docker_logstash_remove_existing_container: yes
+docker_logstash_home: "/opt/{{ docker_logstash_name }}"
+docker_logstash_pipeline: |
+  input {
+    beats {
+      port => 5044
+    }
+  }
+  output {
+    stdout {
+      codec => rubydebug
+    }
+  }
+docker_logstash_uninstall_plugins: []
+docker_logstash_plugins: []
+
+docker_logstash_ports:
+  - 5044:5044
+docker_logstash_network_mode:
+docker_logstash_networks: []
+docker_logstash_env:
+docker_logstash_log_driver: json-file
+docker_logstash_log_options:
+
+# Don't change
+docker_logstash_install_mode: true
+docker_logstash_dummy_pipeline: |
+  input {
+      file {
+          path => [ "/dev/null" ]
+      }
+  }
+  output {
+      null {}
+  }
